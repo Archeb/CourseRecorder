@@ -1,20 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Reflection;
-using System.Text;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Diagnostics;
 using PowerPoint = Microsoft.Office.Interop.PowerPoint;
-using System.Collections;
 using CourseRecorder.Helpers;
 
 namespace CourseRecorder
 {
     public class CourseEventPublisher
     {
-        public Queue EventQueue = new Queue();
+        public event EventHandler<CourseEventArgs> CourseEvent;
         public CourseEventPublisher()
         {
             // Register mouse and keyboard hooks
@@ -24,7 +19,7 @@ namespace CourseRecorder
             
             // Register PowerPoint Application Event Hooks
             PowerPoint.Application PowerPointApp;
-            PowerPointApp = new Microsoft.Office.Interop.PowerPoint.Application();
+            PowerPointApp = new PowerPoint.Application();
             try
             {
                 PowerPointApp.SlideShowNextSlide += PowerPointSlideShowNextSlide;
@@ -33,41 +28,42 @@ namespace CourseRecorder
             {
                 Debug.WriteLine("PPT钩子错误");
             }
-            
         }
         private void MouseHookCallback(int x, int y, MouseMessage message)
         {
             if (message != MouseMessage.WM_MOUSEMOVE)
             {
-                EventQueue.Enqueue(new MouseEventArgs(x, y, message));
+                Debug.WriteLine("MouseHookCallback");
+                OnRaiseCourseEvent(new MouseEventArgs(x, y, message));
             }
         }
         private void KeyboardHookCallback(int keyCode)
         {
-            EventQueue.Enqueue(new KeyboardEventArgs(keyCode));
+            Debug.WriteLine("KeyboardHookCallback");
+            OnRaiseCourseEvent(new KeyboardEventArgs(keyCode));
         }
-
+        
         private void PowerPointSlideShowNextSlide(PowerPoint.SlideShowWindow Wn)
         {
-            EventQueue.Enqueue(new DocumentEventArgs(Wn.Presentation.Name, Wn.Presentation.FullName, "PowerPointNextSlide", Wn.View.Slide.SlideIndex));
-        }        
-
+            OnRaiseCourseEvent(new DocumentEventArgs(Wn.Presentation.Name, Wn.Presentation.FullName, "PowerPointNextSlide", Wn.View.Slide.SlideIndex));
+        }
+        protected virtual void OnRaiseCourseEvent(CourseEventArgs e)
+        {
+            EventHandler<CourseEventArgs> handler = CourseEvent;
+            Task.Run(() => handler?.Invoke(this, e));
+        }
     }
 
     
         
-    interface CourseEventArgs
+    public class CourseEventArgs
     {
-        long Timestamp { get; set; }
-        Guid EventId { get; set; }
-        string EventType { get; set; }
+        public long Timestamp;
+        public Guid EventId;
+        public string EventType;
     }
     class KeyboardEventArgs : CourseEventArgs
     {
-        public long Timestamp { get; set; }
-        public Guid EventId { get; set; }
-        public string EventType { get; set; }
-
         public int KeyCode;
         public KeyboardEventArgs(int keyCode)
         {
@@ -79,9 +75,6 @@ namespace CourseRecorder
     }
     class MouseEventArgs : CourseEventArgs
     {
-        public long Timestamp { get; set; }
-        public Guid EventId { get; set; }
-        public string EventType { get; set; }
 
         public int X;
         public int Y;
@@ -119,10 +112,6 @@ namespace CourseRecorder
 
     class DocumentEventArgs : CourseEventArgs
     {
-        public long Timestamp { get; set; }
-        public Guid EventId { get; set; }
-        public string EventType { get; set; }
-
         public string Name;
         public string FullPath;
         public string Action;

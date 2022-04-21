@@ -1,13 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Windows.Forms;
-
+using WebSocketSharp;
+using CourseRecorder.Course;
+using System.Diagnostics;
+using Newtonsoft.Json;
+using static CourseRecorder.Course.CourseManager;
 
 namespace CourseRecorder
 {
@@ -22,39 +19,61 @@ namespace CourseRecorder
 
 
         
-        public CourseEventPublisher pub;
         private void button2_Click(object sender, EventArgs e)
         {
-            pub = new CourseEventPublisher();
-            Thread t = new Thread(new ThreadStart(ProcessCourseEvent));
-            t.Start();
         }
-        void ProcessCourseEvent()
+        
+        
+
+        private void button1_Click(object sender, EventArgs e)
         {
-            do
-            {
-                while (pub.EventQueue.Count != 0)
-                {
-                    CourseEventArgs e = (CourseEventArgs)pub.EventQueue.Dequeue();
-                    switch (e)
-                    {
-                        case KeyboardEventArgs KeyboardEvent:
-                            listBox1.Items.Add(KeyboardEvent.Timestamp + " 按键：" + KeyboardEvent.KeyCode);
-                            break;
-                        case MouseEventArgs MouseEvent:
-                            listBox1.Items.Add(MouseEvent.Timestamp  + " 鼠标按键：" + MouseEvent.Button + " 鼠标位置：" + MouseEvent.X + "," + MouseEvent.Y);
-                            break;
-                        case DocumentEventArgs DocumentEvent:
-                            listBox1.Items.Add(DocumentEvent.Timestamp + " 文档：" + DocumentEvent.Name + " 当前页码：" + DocumentEvent.Index);
-                            break;
-                        default:
-                            break;
-                    }
-                    listBox1.SelectedIndex = listBox1.Items.Count - 1;
-                }
-                Thread.Sleep(1000);
-            } while (true);
+            new CourseManager("wss://localtest.qwq.moe:3300/");
+            
         }
 
+        private void handleWsMessage(object sender, MessageEventArgs e)
+        {
+            listBox1.Items.Add(e.Data);
+            listBox1.SelectedIndex = listBox1.Items.Count - 1;
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            // exit program
+            Application.Exit();
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            var cep = new CourseEventPublisher();
+            cep.CourseEvent += handleCourseEvent;
+        }
+        void handleCourseEvent(object sender, CourseEventArgs e)
+        {
+            Debug.WriteLine(e);
+            switch (e)
+            {
+                case KeyboardEventArgs KeyboardEvent:
+                    Debug.WriteLine(JsonConvert.SerializeObject(new EventMessage
+                    {
+                        eventData = KeyboardEvent
+                    }));
+                    break;
+                case MouseEventArgs MouseEvent:
+                    Debug.WriteLine(JsonConvert.SerializeObject(new EventMessage
+                    {
+                        eventData = MouseEvent
+                    }));
+                    break;
+                case DocumentEventArgs DocumentEvent:
+                    Debug.WriteLine(JsonConvert.SerializeObject(new EventMessage
+                    {
+                        eventData = DocumentEvent
+                    }));
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 }
