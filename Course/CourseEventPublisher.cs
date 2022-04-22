@@ -10,13 +10,14 @@ namespace CourseRecorder
     public class CourseEventPublisher
     {
         public event EventHandler<CourseEventArgs> CourseEvent;
+        private HookHelper SystemHook;
         public CourseEventPublisher()
         {
             // Register mouse and keyboard hooks
-            HookHelper SystemHook = new HookHelper();
+            SystemHook = new HookHelper();
             SystemHook.SetUpMouseHook(MouseHookCallback);
             SystemHook.SetUpKeyboardHook(KeyboardHookCallback);
-            
+
             // Register PowerPoint Application Event Hooks
             PowerPoint.Application PowerPointApp;
             PowerPointApp = new PowerPoint.Application();
@@ -26,20 +27,23 @@ namespace CourseRecorder
             }
             catch (COMException)
             {
-                Debug.WriteLine("PPT钩子错误");
+                Debug.WriteLine("PowerPoint Hook Error");
             }
+        }
+        public void Dispose()
+        {
+            SystemHook.ClearMouseHook();
+            SystemHook.ClearKeyboardHook();
         }
         private void MouseHookCallback(int x, int y, MouseMessage message)
         {
             if (message != MouseMessage.WM_MOUSEMOVE)
             {
-                Debug.WriteLine("MouseHookCallback");
                 OnRaiseCourseEvent(new MouseEventArgs(x, y, message));
             }
         }
         private void KeyboardHookCallback(int keyCode)
         {
-            Debug.WriteLine("KeyboardHookCallback");
             OnRaiseCourseEvent(new KeyboardEventArgs(keyCode));
         }
         
@@ -50,7 +54,9 @@ namespace CourseRecorder
         protected virtual void OnRaiseCourseEvent(CourseEventArgs e)
         {
             EventHandler<CourseEventArgs> handler = CourseEvent;
-            Task.Run(() => handler?.Invoke(this, e));
+            Task.Run(() => {
+                handler?.Invoke(this, e);
+            });
         }
     }
 

@@ -19,8 +19,9 @@ namespace CourseRecorder.Helpers
     {
         public delegate void MouseCallbackFunction(int x, int y, MouseMessage message);
         public delegate void KeyboardCallbackFunction(int key);
-        private MouseCallbackFunction GlobalUserMouseCallback;
-        private KeyboardCallbackFunction GlobalUserKeyboardCallback;
+        private static MouseCallbackFunction GlobalUserMouseCallback;
+        private static KeyboardCallbackFunction GlobalUserKeyboardCallback;
+        private static HookProc GlobalLlKeyboardHookCallback, GlobalLlMouseHookCallback;
         private static IntPtr GlobalLlMouseHook, GlobalLlKeyboardHook;
         internal delegate int HookProc(int nCode, IntPtr wParam, IntPtr lParam);
         public void SetUpMouseHook(MouseCallbackFunction UserMouseCallback)
@@ -28,7 +29,7 @@ namespace CourseRecorder.Helpers
             Debug.WriteLine("Setting up global mouse hook");
 
             // Create an instance of HookProc.
-            HookProc GlobalLlMouseHookCallback = MouseHookCallback;
+            GlobalLlMouseHookCallback = new HookProc(MouseHookCallback);
             GlobalUserMouseCallback = UserMouseCallback;
             GlobalLlMouseHook = SetWindowsHookEx(
                 HookType.WH_MOUSE_LL,
@@ -41,7 +42,7 @@ namespace CourseRecorder.Helpers
                 Debug.WriteLine("Unable to set global mouse hook");
             }
         }
-        private void ClearMouseHook()
+        public void ClearMouseHook()
         {
             Debug.WriteLine("Deleting global mouse hook");
 
@@ -72,7 +73,7 @@ namespace CourseRecorder.Helpers
             Debug.WriteLine("Setting up global keyboard hook");
 
             // Create an instance of HookProc.
-            HookProc GlobalLlKeyboardHookCallback = KeyboardHookCallback;
+            GlobalLlKeyboardHookCallback = new HookProc(KeyboardHookCallback);
             GlobalUserKeyboardCallback = UserKeyboardCallback;
             GlobalLlKeyboardHook = SetWindowsHookEx(
                 HookType.WH_KEYBOARD_LL,
@@ -85,7 +86,7 @@ namespace CourseRecorder.Helpers
                 Debug.WriteLine("Unable to set global keyboard hook");
             }
         }
-        private void ClearKeyboardHook()
+        public void ClearKeyboardHook()
         {
             Debug.WriteLine("Deleting global keyboard hook");
 
@@ -103,7 +104,6 @@ namespace CourseRecorder.Helpers
             if (nCode >= 0 && wParam == (IntPtr)KeyboardMessage.WM_KEYDOWN)
             {
                 int vkCode = Marshal.ReadInt32(lParam);
-                Debug.WriteLine("KeyCode: " + vkCode.ToString());
                 GlobalUserKeyboardCallback(vkCode);
             }
 
