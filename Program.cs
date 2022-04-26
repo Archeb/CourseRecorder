@@ -14,7 +14,7 @@ namespace CourseRecorder
         /// 应用程序的主入口点。
         /// </summary>
         public static CourseEventPublisher cep = new CourseEventPublisher();
-        public static CourseManager cm = new CourseManager("wss://localtest.qwq.moe:3300/ws");
+        public static CourseManager cm = new CourseManager("localtest.qwq.moe:3300");
         [STAThread]
         static void Main()
         {

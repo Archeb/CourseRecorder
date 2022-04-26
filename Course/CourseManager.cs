@@ -3,8 +3,12 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Windows.Forms;
+using System.Net.Http;
+using System.Drawing;
+using CourseRecorder.Helpers;
 
 namespace CourseRecorder.Course
 {
@@ -12,10 +16,13 @@ namespace CourseRecorder.Course
     {
         public CourseState State=CourseState.ServerNotConnected;
         public Guid CourseId;
+        public string ServerAddress;
         private WebSocket ws;
-        public CourseManager(string ServerAddress)
+        private DateTime LastScreenshotTime;
+        public CourseManager(string serverAddress)
         {
-            ws = new WebSocket(ServerAddress);
+            ServerAddress = serverAddress;
+            ws = new WebSocket("wss://" + serverAddress + "/ws");
             ws.OnOpen += (sender, e) =>
             {
                 State = CourseState.ServerConnected;
@@ -86,22 +93,95 @@ namespace CourseRecorder.Course
             State = CourseState.ServerNotConnected;
         }
 
-        public void CourseEventHandler(object sender, CourseEventArgs e)
+        public async void CourseEventHandler(object sender, CourseEventArgs e)
         {
             switch (e)
             {
                 case KeyboardEventArgs KeyboardEvent:
-                    ws.Send(JsonConvert.SerializeObject(new EventMessage(KeyboardEvent)));
+                    string KeyboardFileId = await TakeScreenshotAndUpload(KeyboardEvent.EventId.ToString());
+                    if (KeyboardFileId != null)
+                    {
+                        ws.Send(JsonConvert.SerializeObject(new EventMessage(KeyboardEvent, KeyboardFileId)));
+                    }
+                    else
+                    {
+                        ws.Send(JsonConvert.SerializeObject(new EventMessage(KeyboardEvent)));
+                    }
                     break;
                 case MouseEventArgs MouseEvent:
-                    ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent)));
+                    if (MouseEvent.Button != 0) {
+                        string MouseFileId = await TakeScreenshotAndUpload(MouseEvent.EventId.ToString());
+                        if (MouseFileId != null)
+                        {
+                            ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent, MouseFileId)));
+                        }
+                        else
+                        {
+                            ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent)));
+                        }
+                    }
                     break;
                 case DocumentEventArgs DocumentEvent:
-                    ws.Send(JsonConvert.SerializeObject(new EventMessage(DocumentEvent)));
+                    string DocumentFileId = await TakeScreenshotAndUpload(DocumentEvent.EventId.ToString());
+                    if (DocumentFileId != null)
+                    {
+                        ws.Send(JsonConvert.SerializeObject(new EventMessage(DocumentEvent, DocumentFileId)));
+                    }
+                    else
+                    {
+                        ws.Send(JsonConvert.SerializeObject(new EventMessage(DocumentEvent)));
+                    }
                     break;
                 default:
                     break;
             }
+        }
+
+        private async Task<string> TakeScreenshotAndUpload(string eventId)
+        {
+            //throttle
+            if (LastScreenshotTime.AddSeconds(1) > DateTime.Now)
+            {
+                return null;
+            }
+            LastScreenshotTime = DateTime.Now;
+            //Take screenshot
+            using (WebP webp = new WebP())
+            {
+                try
+                {
+                    Bitmap ps = new Bitmap(Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height);
+                    Graphics graphics = Graphics.FromImage(ps as Image);
+                    graphics.CopyFromScreen(0, 0, 0, 0, ps.Size);
+                    byte[] rawWebP = webp.EncodeLossy(ps, 75);
+                    //Upload to server
+                    using (HttpClient httpClient = new HttpClient())
+                    {
+                        MultipartFormDataContent form = new MultipartFormDataContent();
+                        form.Add(new ByteArrayContent(rawWebP, 0, rawWebP.Length), "file", "screenshot.webp");
+                        HttpResponseMessage response = await httpClient.PostAsync($"https://{this.ServerAddress}/uploadfile?courseId={this.CourseId}&eventId={eventId}&fileType=screenshot", form);
+                        response.EnsureSuccessStatusCode();
+                        string res = await response.Content.ReadAsStringAsync();
+                        Debug.WriteLine(res);
+                        var httpMsg = JsonConvert.DeserializeObject<Dictionary<string, object>>(res);
+                        if ((string)httpMsg["status"] == "success")
+                        {
+                            return (string)httpMsg["fileId"];
+                        }
+                        else
+                        {
+                            return null;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex.Message);
+                    return null;
+                }
+            }
+
+            
         }
         
         public enum CourseState
@@ -116,10 +196,15 @@ namespace CourseRecorder.Course
         public class EventMessage
         {
             public string action = "eventUpdate";
+            public string attachmentId = null;
             public CourseEventArgs eventData;
-            public EventMessage(CourseEventArgs d)
+            public EventMessage(CourseEventArgs d, string fileId = null)
             {
                 eventData = d;
+                if (fileId != null)
+                {
+                    attachmentId = fileId;
+                }
             }
         }
         

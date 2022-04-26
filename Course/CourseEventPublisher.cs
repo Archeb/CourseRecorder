@@ -34,7 +34,7 @@ namespace CourseRecorder
         {
             SystemHook.ClearMouseHook();
             SystemHook.ClearKeyboardHook();
-        }
+        } 
         private void MouseHookCallback(int x, int y, MouseMessage message)
         {
             if (message != MouseMessage.WM_MOUSEMOVE)
@@ -67,6 +67,7 @@ namespace CourseRecorder
         public long Timestamp;
         public Guid EventId;
         public string EventType;
+        
     }
     class KeyboardEventArgs : CourseEventArgs
     {

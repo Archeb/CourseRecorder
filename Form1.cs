@@ -3,12 +3,14 @@ using System.Windows.Forms;
 using WebSocketSharp;
 using CourseRecorder.Course;
 using CourseRecorder.Helpers;
+using System.Net.Http;
 using System.Diagnostics;
 using Newtonsoft.Json;
 using static CourseRecorder.Course.CourseManager;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Printing;
+
 
 namespace CourseRecorder
 {
@@ -25,13 +27,27 @@ namespace CourseRecorder
         
         private void button2_Click(object sender, EventArgs e)
         {
-            Bitmap ps = new Bitmap(Screen.PrimaryScreen.Bounds.Width,Screen.PrimaryScreen.Bounds.Height);
-            Graphics graphics = Graphics.FromImage(ps as Image);
-            graphics.CopyFromScreen(0, 0, 0, 0, ps.Size);
-            using (WebP webp = new WebP())
-                webp.Save(ps, "test.webp", 100);
-            // start the program folder
-            Process.Start(Application.StartupPath);
+            Task.Run(async () =>
+            {
+                using (WebP webp = new WebP())
+                {
+                    Bitmap ps = new Bitmap(Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height);
+                    Graphics graphics = Graphics.FromImage(ps as Image);
+                    graphics.CopyFromScreen(0, 0, 0, 0, ps.Size);
+                    byte[] rawWebP = webp.EncodeLossy(ps, 75);
+                    HttpClient httpClient = new HttpClient();
+                    MultipartFormDataContent form = new MultipartFormDataContent();
+                    form.Add(new ByteArrayContent(rawWebP, 0, rawWebP.Length), "file", "screenshot.webp");
+                    string crouseId = Program.cm.CourseId.ToString();
+                    string eventId = System.Guid.NewGuid().ToString();
+                    HttpResponseMessage response = await httpClient.PostAsync($"https://localtest.qwq.moe:3300/uploadfile?courseId={crouseId}&eventId={eventId}&fileType=screenshot", form);
+                    response.EnsureSuccessStatusCode();
+                    httpClient.Dispose();
+                    string sd = await response.Content.ReadAsStringAsync();
+                    Debug.WriteLine(sd);
+                }
+                GC.Collect();
+            });
 
         }
         
@@ -63,6 +79,12 @@ namespace CourseRecorder
         {
             Program.cep.Dispose();
             Program.cm.Disconnect();
+        }
+
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+           
+            
         }
     }
 }
