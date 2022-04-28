@@ -24,6 +24,7 @@ namespace CourseRecorder
             try
             {
                 PowerPointApp.SlideShowNextSlide += PowerPointSlideShowNextSlide;
+                Debug.WriteLine("PowerPoint Hooked");
             }
             catch (COMException)
             {
@@ -49,6 +50,7 @@ namespace CourseRecorder
         
         private void PowerPointSlideShowNextSlide(PowerPoint.SlideShowWindow Wn)
         {
+            Debug.WriteLine("PowerPoint Event");
             OnRaiseCourseEvent(new DocumentEventArgs(Wn.Presentation.Name, Wn.Presentation.FullName, "PowerPointNextSlide", Wn.View.Slide.SlideIndex));
         }
         protected virtual void OnRaiseCourseEvent(CourseEventArgs e)

@@ -1,20 +1,20 @@
-﻿using WebSocketSharp;
+﻿using CourseRecorder.Helpers;
 using Newtonsoft.Json;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
 using System.Windows.Forms;
-using System.Net.Http;
-using System.Drawing;
-using CourseRecorder.Helpers;
+using WebSocketSharp;
 
 namespace CourseRecorder.Course
 {
     public class CourseManager
     {
-        public CourseState State=CourseState.ServerNotConnected;
+        public CourseState State = CourseState.ServerNotConnected;
         public Guid CourseId;
         public string ServerAddress;
         private WebSocket ws;
@@ -31,10 +31,11 @@ namespace CourseRecorder.Course
                     Debug.WriteLine("Rejoining...");
                     ws.Send(JsonConvert.SerializeObject(new { action = "recorderRejoin", courseId = CourseId }));
                 }
-                else {
-                    ws.Send(JsonConvert.SerializeObject(new { action = "recorderRegister"}));
+                else
+                {
+                    ws.Send(JsonConvert.SerializeObject(new { action = "recorderRegister" }));
                 }
-                
+
             };
             ws.OnMessage += WsMessageHandler;
             ws.OnClose += WsCloseHandler;
@@ -47,7 +48,7 @@ namespace CourseRecorder.Course
         public void Disconnect()
         {
             State = CourseState.BeforeEnd;
-            if(ws.ReadyState == WebSocketState.Open)
+            if (ws.ReadyState == WebSocketState.Open)
             {
                 ws.Close();
             }
@@ -77,9 +78,10 @@ namespace CourseRecorder.Course
         }
 
         public void WsCloseHandler(object sender, CloseEventArgs e)
-        { 
+        {
             Program.cep.CourseEvent -= CourseEventHandler;
-            if (State != CourseState.BeforeEnd) { // accidently closed
+            if (State != CourseState.BeforeEnd)
+            { // accidently closed
                 State = CourseState.ServerNotConnected;
                 Debug.WriteLine("Try to reconnect after 5 seconds");
                 Thread.Sleep(5000);
@@ -98,26 +100,21 @@ namespace CourseRecorder.Course
             switch (e)
             {
                 case KeyboardEventArgs KeyboardEvent:
-                    string KeyboardFileId = await TakeScreenshotAndUpload(KeyboardEvent.EventId.ToString());
-                    if (KeyboardFileId != null)
+                    string KeyboardEventScreenshot = await TakeScreenshotAndUpload(KeyboardEvent.EventId.ToString());
+                    if (KeyboardEventScreenshot != null)
                     {
-                        ws.Send(JsonConvert.SerializeObject(new EventMessage(KeyboardEvent, KeyboardFileId)));
-                    }
-                    else
-                    {
-                        ws.Send(JsonConvert.SerializeObject(new EventMessage(KeyboardEvent)));
+                        AttachmentArgs attachment = new AttachmentArgs(KeyboardEventScreenshot, "screenshot");
+                        ws.Send(JsonConvert.SerializeObject(new EventMessage(KeyboardEvent, attachment)));
                     }
                     break;
                 case MouseEventArgs MouseEvent:
-                    if (MouseEvent.Button != 0) {
-                        string MouseFileId = await TakeScreenshotAndUpload(MouseEvent.EventId.ToString());
-                        if (MouseFileId != null)
+                    if (MouseEvent.Button != 0)
+                    {
+                        string MouseEventScreenshot = await TakeScreenshotAndUpload(MouseEvent.EventId.ToString());
+                        if (MouseEventScreenshot != null)
                         {
-                            ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent, MouseFileId)));
-                        }
-                        else
-                        {
-                            ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent)));
+                            AttachmentArgs attachment = new AttachmentArgs(MouseEventScreenshot, "screenshot");
+                            ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent, attachment)));
                         }
                     }
                     break;
@@ -125,7 +122,8 @@ namespace CourseRecorder.Course
                     string DocumentFileId = await TakeScreenshotAndUpload(DocumentEvent.EventId.ToString());
                     if (DocumentFileId != null)
                     {
-                        ws.Send(JsonConvert.SerializeObject(new EventMessage(DocumentEvent, DocumentFileId)));
+                        AttachmentArgs attachment = new AttachmentArgs(DocumentFileId, "screenshot");
+                        ws.Send(JsonConvert.SerializeObject(new EventMessage(DocumentEvent, attachment)));
                     }
                     else
                     {
@@ -162,11 +160,11 @@ namespace CourseRecorder.Course
                         HttpResponseMessage response = await httpClient.PostAsync($"https://{this.ServerAddress}/uploadfile?courseId={this.CourseId}&eventId={eventId}&fileType=screenshot", form);
                         response.EnsureSuccessStatusCode();
                         string res = await response.Content.ReadAsStringAsync();
-                        Debug.WriteLine(res);
+                        //Debug.WriteLine(res);
                         var httpMsg = JsonConvert.DeserializeObject<Dictionary<string, object>>(res);
-                        if ((string)httpMsg["status"] == "success")
+                        if ((bool)httpMsg["success"] == true)
                         {
-                            return (string)httpMsg["fileId"];
+                            return (string)httpMsg["fileName"];
                         }
                         else
                         {
@@ -181,9 +179,9 @@ namespace CourseRecorder.Course
                 }
             }
 
-            
+
         }
-        
+
         public enum CourseState
         {
             ServerNotConnected,
@@ -196,18 +194,26 @@ namespace CourseRecorder.Course
         public class EventMessage
         {
             public string action = "eventUpdate";
-            public string attachmentId = null;
+            public AttachmentArgs attachment;
             public CourseEventArgs eventData;
-            public EventMessage(CourseEventArgs d, string fileId = null)
+            public EventMessage(CourseEventArgs d, AttachmentArgs userAttachment = null)
             {
                 eventData = d;
-                if (fileId != null)
-                {
-                    attachmentId = fileId;
-                }
+                attachment = userAttachment;
             }
         }
-        
+        public class AttachmentArgs
+        {
+            public string fileName;
+            public string attachmentType;
+            public AttachmentArgs(string fileName, string attachmentType)
+            {
+                this.fileName = fileName;
+                this.attachmentType = attachmentType;
+            }
+
+        }
+
     }
-        
+
 }
