@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using PowerPoint = Microsoft.Office.Interop.PowerPoint;
 using System.Threading.Tasks;
 using System.Diagnostics;
-using PowerPoint = Microsoft.Office.Interop.PowerPoint;
+
 using CourseRecorder.Helpers;
 
 namespace CourseRecorder
@@ -11,6 +12,7 @@ namespace CourseRecorder
     {
         public event EventHandler<CourseEventArgs> CourseEvent;
         private HookHelper SystemHook;
+        private PowerPoint.Application PowerPointApp;
         public CourseEventPublisher()
         {
             // Register mouse and keyboard hooks
@@ -19,11 +21,18 @@ namespace CourseRecorder
             SystemHook.SetUpKeyboardHook(KeyboardHookCallback);
 
             // Register PowerPoint Application Event Hooks
-            PowerPoint.Application PowerPointApp;
+            RegisterPowerPointEventHandlers();
+
+
+        }
+        private void RegisterPowerPointEventHandlers()
+        {
             PowerPointApp = new PowerPoint.Application();
             try
             {
                 PowerPointApp.SlideShowNextSlide += PowerPointSlideShowNextSlide;
+                PowerPointApp.PresentationOpen += PowerPointPresentationOpen;
+                PowerPointApp.PresentationClose += PowerPointPresentationClose;
                 Debug.WriteLine("PowerPoint Hooked");
             }
             catch (COMException)
@@ -50,8 +59,18 @@ namespace CourseRecorder
         
         private void PowerPointSlideShowNextSlide(PowerPoint.SlideShowWindow Wn)
         {
-            Debug.WriteLine("PowerPoint Event");
+            Debug.WriteLine("PowerPoint ShowNextSlide Event");
             OnRaiseCourseEvent(new DocumentEventArgs(Wn.Presentation.Name, Wn.Presentation.FullName, "PowerPointNextSlide", Wn.View.Slide.SlideIndex));
+        }
+        private void PowerPointPresentationOpen(PowerPoint.Presentation Pres)
+        {
+            Debug.WriteLine("PowerPoint PresentationOpen Event");
+            OnRaiseCourseEvent(new DocumentEventArgs(Pres.Name, Pres.FullName, "PowerPointPresentationOpen", -1));
+        }
+        private void PowerPointPresentationClose(PowerPoint.Presentation Pres)
+        {
+            Debug.WriteLine("PowerPoint PresentationClose Event");
+            OnRaiseCourseEvent(new DocumentEventArgs(Pres.Name, Pres.FullName, "PowerPointPresentationClose", -1));
         }
         protected virtual void OnRaiseCourseEvent(CourseEventArgs e)
         {
@@ -134,6 +153,18 @@ namespace CourseRecorder
             Timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
             EventId = Guid.NewGuid();
             EventType = "DocumentEvent";
+        }
+    }
+
+    class TriggerOnDemandEventArgs : CourseEventArgs
+    {
+        public string Action;
+        public TriggerOnDemandEventArgs(string action)
+        {
+            Action = action;
+            Timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            EventId = Guid.NewGuid();
+            EventType = "TriggerOnDemandEvent";
         }
     }
 }

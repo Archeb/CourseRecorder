@@ -12,6 +12,10 @@ using System.Drawing;
 using System.Drawing.Printing;
 
 
+using System.Runtime.InteropServices;
+using PowerPoint = Microsoft.Office.Interop.PowerPoint;
+
+
 namespace CourseRecorder
 {
     public partial class Form1 : Form
@@ -72,7 +76,12 @@ namespace CourseRecorder
 
         private void button4_Click(object sender, EventArgs e)
         {
-            Program.cm.Disconnect();
+            PowerPoint.Application PowerPointApp;
+            PowerPointApp = new PowerPoint.Application();
+            foreach (PowerPoint.Presentation presentation in PowerPointApp.Presentations)
+            {
+                listBox1.Items.Add(presentation.Name);
+            }
         }
 
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)

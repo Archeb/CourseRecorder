@@ -105,17 +105,34 @@ namespace CourseRecorder.Course
                     {
                         AttachmentArgs attachment = new AttachmentArgs(KeyboardEventScreenshot, "screenshot");
                         ws.Send(JsonConvert.SerializeObject(new EventMessage(KeyboardEvent, attachment)));
+                        _ = Task.Delay(250).ContinueWith((task) =>
+                        {
+                            // take another screenshot after 250ms
+                            CourseEventHandler(sender, new TriggerOnDemandEventArgs("screenshot"));
+                        });
+                        _ = Task.Delay(1000).ContinueWith((task) =>
+                        {
+                            // well, another screenshot after 1s
+                            CourseEventHandler(sender, new TriggerOnDemandEventArgs("screenshot"));
+                        });
                     }
                     break;
                 case MouseEventArgs MouseEvent:
-                    if (MouseEvent.Button != 0)
+                string MouseEventScreenshot = await TakeScreenshotAndUpload(MouseEvent.EventId.ToString());
+                if (MouseEventScreenshot != null)
+                {
+                    AttachmentArgs attachment = new AttachmentArgs(MouseEventScreenshot, "screenshot");
+                    ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent, attachment)));
+                    _ = Task.Delay(250).ContinueWith((task) =>
                     {
-                        string MouseEventScreenshot = await TakeScreenshotAndUpload(MouseEvent.EventId.ToString());
-                        if (MouseEventScreenshot != null)
-                        {
-                            AttachmentArgs attachment = new AttachmentArgs(MouseEventScreenshot, "screenshot");
-                            ws.Send(JsonConvert.SerializeObject(new EventMessage(MouseEvent, attachment)));
-                        }
+                        // take another screenshot after 250ms
+                        CourseEventHandler(sender, new TriggerOnDemandEventArgs("screenshot"));
+                    });
+                    _ = Task.Delay(1000).ContinueWith((task) =>
+                    {
+                        // well, another screenshot after 1s
+                        CourseEventHandler(sender, new TriggerOnDemandEventArgs("screenshot"));
+                    });
                     }
                     break;
                 case DocumentEventArgs DocumentEvent:
@@ -130,6 +147,23 @@ namespace CourseRecorder.Course
                         ws.Send(JsonConvert.SerializeObject(new EventMessage(DocumentEvent)));
                     }
                     break;
+                case TriggerOnDemandEventArgs TriggerOnDemandEvent:
+                    switch (TriggerOnDemandEvent.Action)
+                    {
+                        case "screenshot":
+                            string ScreenshotOnDemandFileId = await TakeScreenshotAndUpload(TriggerOnDemandEvent.EventId.ToString());
+                            if (ScreenshotOnDemandFileId != null)
+                            {
+                                AttachmentArgs attachment = new AttachmentArgs(ScreenshotOnDemandFileId, "screenshot");
+                                ws.Send(JsonConvert.SerializeObject(new EventMessage(TriggerOnDemandEvent, attachment)));
+                            }
+                            break;
+                        default:
+                            Debug.WriteLine("Unhandled message: " + TriggerOnDemandEvent.Action);
+                            break;
+                    }
+                    break;
+
                 default:
                     break;
             }
@@ -138,7 +172,7 @@ namespace CourseRecorder.Course
         private async Task<string> TakeScreenshotAndUpload(string eventId)
         {
             //throttle
-            if (LastScreenshotTime.AddSeconds(1) > DateTime.Now)
+            if (LastScreenshotTime.AddMilliseconds(200) > DateTime.Now)
             {
                 return null;
             }
