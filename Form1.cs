@@ -10,7 +10,7 @@ using static CourseRecorder.Course.CourseManager;
 using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Printing;
-
+using QRCoder;
 
 using System.Runtime.InteropServices;
 using PowerPoint = Microsoft.Office.Interop.PowerPoint;
@@ -25,48 +25,12 @@ namespace CourseRecorder
         {
             InitializeComponent();
             Control.CheckForIllegalCrossThreadCalls = false;
+            Program.cm.OnStateChanged += handleCourseStateChange;
         }
 
         
         
-        private void button2_Click(object sender, EventArgs e)
-        {
-            Task.Run(async () =>
-            {
-                using (WebP webp = new WebP())
-                {
-                    Bitmap ps = new Bitmap(Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height);
-                    Graphics graphics = Graphics.FromImage(ps as Image);
-                    graphics.CopyFromScreen(0, 0, 0, 0, ps.Size);
-                    byte[] rawWebP = webp.EncodeLossy(ps, 75);
-                    HttpClient httpClient = new HttpClient();
-                    MultipartFormDataContent form = new MultipartFormDataContent();
-                    form.Add(new ByteArrayContent(rawWebP, 0, rawWebP.Length), "file", "screenshot.webp");
-                    string crouseId = Program.cm.CourseId.ToString();
-                    string eventId = System.Guid.NewGuid().ToString();
-                    HttpResponseMessage response = await httpClient.PostAsync($"https://localtest.qwq.moe:3300/uploadfile?courseId={crouseId}&eventId={eventId}&fileType=screenshot", form);
-                    response.EnsureSuccessStatusCode();
-                    httpClient.Dispose();
-                    string sd = await response.Content.ReadAsStringAsync();
-                    Debug.WriteLine(sd);
-                }
-                GC.Collect();
-            });
-
-        }
         
-        
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-            
-        }
-
-        private void handleWsMessage(object sender, MessageEventArgs e)
-        {
-            listBox1.Items.Add(e.Data);
-            listBox1.SelectedIndex = listBox1.Items.Count - 1;
-        }
 
         private void button3_Click(object sender, EventArgs e)
         {
@@ -74,15 +38,6 @@ namespace CourseRecorder
             Application.Exit();
         }
 
-        private void button4_Click(object sender, EventArgs e)
-        {
-            PowerPoint.Application PowerPointApp;
-            PowerPointApp = new PowerPoint.Application();
-            foreach (PowerPoint.Presentation presentation in PowerPointApp.Presentations)
-            {
-                listBox1.Items.Add(presentation.Name);
-            }
-        }
 
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
@@ -90,10 +45,49 @@ namespace CourseRecorder
             Program.cm.Disconnect();
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
+        private void handleCourseStateChange()
         {
-           
-            
+            switch (Program.cm.State)
+            {
+                case CourseState.ServerNotConnected:
+                    label1.Text = "服务器连接状态：未连接";
+                    label3.Text = "";
+                    break;
+                case CourseState.TryReconnect:
+                    label1.Text = "服务器连接状态：重连中";
+                    label3.Text = "";
+                    break;
+                case CourseState.ServerConnected:
+                    label1.Text = "服务器连接状态：已连接";
+                    break;
+                case CourseState.CourseRegistered:
+                    label1.Text = "服务器连接状态：已连接";
+                    label3.Text = Program.cm.ShortCode;
+                    //generate qr code
+                    QRCodeGenerator qrGenerator = new QRCodeGenerator();
+                    QRCodeData qrCodeData = qrGenerator.CreateQrCode(Program.cm.JoinURL, QRCodeGenerator.ECCLevel.Q);
+                    QRCode qrCode = new QRCode(qrCodeData);
+                    Bitmap qrCodeImage = qrCode.GetGraphic(6,Color.Black,Color.White,false);
+                    pictureBox1.Image = qrCodeImage;
+                    break;
+                case CourseState.CourseStarted:
+                    label1.Text = "服务器连接状态：已连接";
+                    break;
+                case CourseState.BeforeEnd:
+                    label1.Text = "服务器连接状态：未连接";
+                    label3.Text = "";
+                    break;
+            }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label3_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }

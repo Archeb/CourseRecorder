@@ -14,11 +14,13 @@ namespace CourseRecorder.Course
 {
     public class CourseManager
     {
-        public CourseState State = CourseState.ServerNotConnected;
         public Guid CourseId;
         public string ServerAddress;
+        public string ShortCode;
+        public string JoinURL;
         private WebSocket ws;
         private DateTime LastScreenshotTime;
+        
         public CourseManager(string serverAddress)
         {
             ServerAddress = serverAddress;
@@ -60,6 +62,8 @@ namespace CourseRecorder.Course
             {
                 case "registered":
                     CourseId = Guid.Parse((string)wsMsg["courseId"]);
+                    ShortCode = wsMsg["shortCode"].ToString();
+                    JoinURL = wsMsg["joinURL"].ToString();
                     State = CourseState.CourseRegistered;
                     break;
                 case "rejoined":
@@ -82,7 +86,7 @@ namespace CourseRecorder.Course
             Program.cep.CourseEvent -= CourseEventHandler;
             if (State != CourseState.BeforeEnd)
             { // accidently closed
-                State = CourseState.ServerNotConnected;
+                State = CourseState.TryReconnect;
                 Debug.WriteLine("Try to reconnect after 5 seconds");
                 Thread.Sleep(5000);
                 Connect();
@@ -92,7 +96,7 @@ namespace CourseRecorder.Course
         public void WsErrorHandler(object sender, ErrorEventArgs e)
         {
             Program.cep.CourseEvent -= CourseEventHandler;
-            State = CourseState.ServerNotConnected;
+            State = CourseState.TryReconnect;
         }
 
         public async void CourseEventHandler(object sender, CourseEventArgs e)
@@ -216,10 +220,28 @@ namespace CourseRecorder.Course
 
         }
 
+        public event Action OnStateChanged;
+        private CourseState _state;
+        public CourseState State
+        {
+            get
+            {
+                return _state;
+            }
+            set
+            {
+                if (_state != value)
+                {
+                    _state = value;
+                    OnStateChanged?.Invoke();
+                }
+            }
+        }
         public enum CourseState
         {
             ServerNotConnected,
             ServerConnected,
+            TryReconnect,
             CourseRegistered,
             CourseStarted,
             BeforeEnd,
