@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 
 using CourseRecorder.Helpers;
+using System.Windows;
 
 namespace CourseRecorder
 {
@@ -27,9 +28,9 @@ namespace CourseRecorder
         }
         private void RegisterPowerPointEventHandlers()
         {
-            PowerPointApp = new PowerPoint.Application();
             try
             {
+                PowerPointApp = new PowerPoint.Application();
                 PowerPointApp.SlideShowNextSlide += PowerPointSlideShowNextSlide;
                 PowerPointApp.PresentationOpen += PowerPointPresentationOpen;
                 PowerPointApp.PresentationClose += PowerPointPresentationClose;
@@ -37,7 +38,7 @@ namespace CourseRecorder
             }
             catch (COMException)
             {
-                Debug.WriteLine("PowerPoint Hook Error");
+                MessageBox.Show("PowerPoint集成功能注册失败，将影响部分功能使用，请检查PowerPoint是否安装。");
             }
         }
         public void Dispose()

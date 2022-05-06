@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using CourseRecorder.Course;
+using System.Configuration;
 
 namespace CourseRecorder
 {
@@ -13,11 +14,19 @@ namespace CourseRecorder
         /// <summary>
         /// 应用程序的主入口点。
         /// </summary>
-        public static CourseEventPublisher cep = new CourseEventPublisher();
-        public static CourseManager cm = new CourseManager("localtest.qwq.moe:3300");
+        public static CourseEventPublisher cep;
+        public static CourseManager cm;
         [STAThread]
         static void Main()
         {
+            string ServerAddress = ConfigurationManager.AppSettings["ServerAddress"];
+            if (ServerAddress == null)
+            {
+                MessageBox.Show("请在配置文件中配置服务器地址", Application.ProductName);
+                return;
+            }
+            cm = new CourseManager(ServerAddress);
+            cep = new CourseEventPublisher();
             Thread cmThread = new System.Threading.Thread(Program.cm.Connect);
             cmThread.Name = "cmThread";
             cmThread.Start();
@@ -25,6 +34,5 @@ namespace CourseRecorder
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());
         }
-           
     }
 }

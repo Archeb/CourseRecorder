@@ -11,16 +11,15 @@ using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Printing;
 using QRCoder;
-
+using NAudio.CoreAudioApi;
 using System.Runtime.InteropServices;
 using PowerPoint = Microsoft.Office.Interop.PowerPoint;
-
+using System.Threading;
 
 namespace CourseRecorder
 {
     public partial class Form1 : Form
     {
-        
         public Form1()
         {
             InitializeComponent();
@@ -34,6 +33,8 @@ namespace CourseRecorder
 
         private void button3_Click(object sender, EventArgs e)
         {
+            Program.cep.Dispose();
+            Program.cm.Disconnect();
             // exit program
             Application.Exit();
         }
@@ -69,6 +70,9 @@ namespace CourseRecorder
                     QRCode qrCode = new QRCode(qrCodeData);
                     Bitmap qrCodeImage = qrCode.GetGraphic(6,Color.Black,Color.White,false);
                     pictureBox1.Image = qrCodeImage;
+                    //trigger audio input change
+                    if (comboBox1.Items.Count > 0)                    
+                        Program.cm.StreamChangeInput(comboBox1.Items[comboBox1.SelectedIndex].ToString());
                     break;
                 case CourseState.CourseStarted:
                     label1.Text = "服务器连接状态：已连接";
@@ -82,12 +86,47 @@ namespace CourseRecorder
 
         private void Form1_Load(object sender, EventArgs e)
         {
-
+            MMDeviceEnumerator names = new MMDeviceEnumerator();
+            var devices = names.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            foreach (var device in devices)
+                comboBox1.Items.Add(device.FriendlyName);
+            if (comboBox1.Items.Count > 0)
+            {
+                comboBox1.SelectedIndex = 0;
+            }
+            else
+            {
+                MessageBox.Show("没有可用的麦克风设备，请检查麦克风是否连接。");
+            }
         }
-
         private void label3_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void comboBox1_SelectedIndexChanged_1(object sender, EventArgs e)
+        {
+            Program.cm.StreamChangeInput(comboBox1.Items[comboBox1.SelectedIndex].ToString());
         }
     }
 }

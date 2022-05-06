@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 using WebSocketSharp;
 
 namespace CourseRecorder.Course
@@ -18,7 +19,9 @@ namespace CourseRecorder.Course
         public string ServerAddress;
         public string ShortCode;
         public string JoinURL;
+        public string StreamServer;
         private WebSocket ws;
+        private CourseStreamer streamer;
         private DateTime LastScreenshotTime;
         
         public CourseManager(string serverAddress)
@@ -54,6 +57,10 @@ namespace CourseRecorder.Course
             {
                 ws.Close();
             }
+            if(streamer != null)
+            {
+                streamer.Stop();
+            }
         }
         public void WsMessageHandler(object sender, MessageEventArgs e)
         {
@@ -64,6 +71,12 @@ namespace CourseRecorder.Course
                     CourseId = Guid.Parse((string)wsMsg["courseId"]);
                     ShortCode = wsMsg["shortCode"].ToString();
                     JoinURL = wsMsg["joinURL"].ToString();
+                    StreamServer = wsMsg["streamServer"].ToString();
+
+                    streamer = new CourseStreamer();
+                    streamer.AudioInputDevice = "";
+                    streamer.StreamURL = "rtmp://" + StreamServer + "/live/" + Guid.NewGuid().ToString() + "?courseId=" + CourseId.ToString();
+
                     State = CourseState.CourseRegistered;
                     break;
                 case "rejoined":
@@ -72,7 +85,7 @@ namespace CourseRecorder.Course
                     State = CourseState.CourseStarted;
                     break;
                 case "rejoinFailed":
-                    MessageBox.Show("Rejoin has failed, please restart the program.");
+                    MessageBox.Show("断线重连失败，请重新运行" + Application.ProductName + "开课", Application.ProductName);
                     Application.Exit();
                     break;
                 default:
@@ -93,6 +106,15 @@ namespace CourseRecorder.Course
             }
         }
 
+        public void StreamChangeInput(string inputDevice)
+        {
+            if (streamer != null)
+            {
+                streamer.AudioInputDevice = inputDevice;
+                streamer.Restart();
+            }
+        }
+
         public void WsErrorHandler(object sender, ErrorEventArgs e)
         {
             Program.cep.CourseEvent -= CourseEventHandler;
@@ -101,6 +123,7 @@ namespace CourseRecorder.Course
 
         public async void CourseEventHandler(object sender, CourseEventArgs e)
         {
+            if (State != CourseState.CourseStarted) return;
             switch (e)
             {
                 case KeyboardEventArgs KeyboardEvent:
@@ -186,7 +209,10 @@ namespace CourseRecorder.Course
             {
                 try
                 {
-                    Bitmap ps = new Bitmap(Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height);
+                    DEVMODE dm = new DEVMODE();
+                    dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+                    EnumDisplaySettings(Screen.AllScreens[0].DeviceName, -1, ref dm);
+                    Bitmap ps = new Bitmap(dm.dmPelsWidth, dm.dmPelsHeight);
                     Graphics graphics = Graphics.FromImage(ps as Image);
                     graphics.CopyFromScreen(0, 0, 0, 0, ps.Size);
                     byte[] rawWebP = webp.EncodeLossy(ps, 75);
@@ -195,7 +221,7 @@ namespace CourseRecorder.Course
                     {
                         MultipartFormDataContent form = new MultipartFormDataContent();
                         form.Add(new ByteArrayContent(rawWebP, 0, rawWebP.Length), "file", "screenshot.webp");
-                        HttpResponseMessage response = await httpClient.PostAsync($"https://{this.ServerAddress}/uploadfile?courseId={this.CourseId}&eventId={eventId}&fileType=screenshot", form);
+                        HttpResponseMessage response = await httpClient.PostAsync($"https://{this.ServerAddress}/api/uploadfile?courseId={this.CourseId}&eventId={eventId}&fileType=screenshot", form);
                         response.EnsureSuccessStatusCode();
                         string res = await response.Content.ReadAsStringAsync();
                         //Debug.WriteLine(res);
@@ -212,7 +238,7 @@ namespace CourseRecorder.Course
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex.Message);
+                    Debug.WriteLine(ex);
                     return null;
                 }
             }
@@ -268,6 +294,47 @@ namespace CourseRecorder.Course
                 this.attachmentType = attachmentType;
             }
 
+        }
+        [DllImport("user32.dll")]
+        public static extern bool EnumDisplaySettings(string lpszDeviceName, int iModeNum, ref DEVMODE lpDevMode);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DEVMODE
+        {
+            private const int CCHDEVICENAME = 0x20;
+            private const int CCHFORMNAME = 0x20;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
+            public string dmDeviceName;
+            public short dmSpecVersion;
+            public short dmDriverVersion;
+            public short dmSize;
+            public short dmDriverExtra;
+            public int dmFields;
+            public int dmPositionX;
+            public int dmPositionY;
+            public ScreenOrientation dmDisplayOrientation;
+            public int dmDisplayFixedOutput;
+            public short dmColor;
+            public short dmDuplex;
+            public short dmYResolution;
+            public short dmTTOption;
+            public short dmCollate;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
+            public string dmFormName;
+            public short dmLogPixels;
+            public int dmBitsPerPel;
+            public int dmPelsWidth;
+            public int dmPelsHeight;
+            public int dmDisplayFlags;
+            public int dmDisplayFrequency;
+            public int dmICMMethod;
+            public int dmICMIntent;
+            public int dmMediaType;
+            public int dmDitherType;
+            public int dmReserved1;
+            public int dmReserved2;
+            public int dmPanningWidth;
+            public int dmPanningHeight;
         }
 
     }
